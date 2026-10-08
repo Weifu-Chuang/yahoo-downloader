@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.vercel/
+node_modules/
+*.xlsx
+.env
+!sample/*.xlsx
+poc/
+.pytest_cache/

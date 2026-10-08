@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yahoo 財經資料下載器</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="top">
+  <h1>Yahoo 財經資料下載器</h1>
+  <p class="sub">投資組合管理期末報告用。選好標的與期間，下載成一個多分頁的 Excel 檔。</p>
+</header>
+
+<main class="layout">
+  <div class="steps">
+
+    <section class="card" id="sec-assets">
+      <h2><span class="num">1</span>指數與資產</h2>
+      <p class="hint">預設全部勾選。台股指數與 S&amp;P 500 可以換成其他代號。</p>
+      <div class="row-actions">
+        <button type="button" class="link" id="all-on">全選</button>
+        <button type="button" class="link" id="all-off">全不選</button>
+      </div>
+      <ul class="assets" id="assets"></ul>
+    </section>
+
+    <section class="card" id="sec-stocks">
+      <h2><span class="num">2</span>個股（固定 5 檔）</h2>
+      <p class="hint">輸入雅虎財經的代號，例如 <code>2330.TW</code>、<code>MMM</code>、<code>LVMUY</code>。輸入後會自動驗證。</p>
+      <div class="row-actions">
+        <button type="button" class="link" id="fill-demo">填入範例 5 檔</button>
+        <button type="button" class="link" id="clear-stocks">清空</button>
+      </div>
+      <ol class="stocks" id="stocks"></ol>
+    </section>
+
+    <section class="card" id="sec-period">
+      <h2><span class="num">3</span>期間與頻率</h2>
+
+      <div class="field">
+        <label for="end">結束日</label>
+        <div class="inline">
+          <input type="date" id="end">
+          <button type="button" class="link" id="end-today">設為今天（台北時間）</button>
+        </div>
+      </div>
+
+      <fieldset class="field">
+        <legend>從結束日往前看多久</legend>
+        <div class="seg" id="lookback" role="radiogroup" aria-label="往回推"></div>
+        <label class="custom-line">
+          <input type="radio" name="startmode" id="mode-custom">
+          <span>自訂起始日</span>
+          <input type="date" id="start">
+        </label>
+      </fieldset>
+
+      <fieldset class="field">
+        <legend>取值頻率</legend>
+        <div class="seg" id="freq" role="radiogroup" aria-label="取值頻率"></div>
+      </fieldset>
+
+      <p class="lockrule">灰色選項是被鎖住的：期間至少要涵蓋 2 個完整週期，否則算不出報酬。</p>
+      <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+
+      <div class="row-actions">
+        <button type="button" class="link" id="preset">套用期末報告期間（2016-09-01 ~ 2026-08-31，週資料）</button>
+      </div>
+    </section>
+  </div>
+
+  <aside class="summary card" aria-label="下載摘要">
+    <h2>下載摘要</h2>
+    <dl>
+      <dt>檔名</dt><dd id="s-file" class="mono">-</dd>
+      <dt>資料範圍</dt><dd id="s-range">-</dd>
+      <dt>頻率</dt><dd id="s-freq">-</dd>
+      <dt>標的數</dt><dd id="s-count">-</dd>
+      <dt>預估每檔筆數</dt><dd id="s-rows">-</dd>
+      <dt>Excel 分頁</dt><dd id="s-sheets">-</dd>
+    </dl>
+    <p class="note">起始日之前的最後一期會多抓一筆，標為「Prior period 前一期」，讓第一期報酬可以計算。</p>
+
+    <ul id="blockers" class="blockers" aria-live="polite"></ul>
+
+    <button type="button" class="primary" id="go" disabled>下載 Excel</button>
+
+    <div id="progress" hidden>
+      <h3>下載進度</h3>
+      <ul id="plist" class="plist"></ul>
+      <div id="decision" class="decision" hidden>
+        <p id="decision-msg"></p>
+        <div class="btns">
+          <button type="button" class="primary small" id="continue">仍下載其餘標的</button>
+          <button type="button" class="ghost small" id="cancel">取消</button>
+        </div>
+      </div>
+      <div id="done" class="done" hidden>
+        <p id="done-msg"></p>
+        <button type="button" class="primary small" id="again">再下載一次</button>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
