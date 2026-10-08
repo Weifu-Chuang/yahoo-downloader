@@ -21,23 +21,23 @@ def bdays(start, end):
     return [d.strftime("%Y-%m-%d") for d in pd.bdate_range(start, end)]
 
 
-# ---------------------------------------------------------------- 週
+# ---------------------------------------------------------------- 週（與雅虎一致：日期標第一個交易日、收盤取最後一個交易日）
 
-def test_weekly_uses_last_trading_day_and_friday_key():
+def test_weekly_label_is_first_trading_day_monday_key():
     df = make_df(bdays("2026-08-17", "2026-08-28"))
     rows = resample_rows(df, "1wk", "2026-08-17", "2026-08-28")
-    assert [r["date"] for r in rows] == ["2026-08-21", "2026-08-28"]
-    assert [r["combinedKey"] for r in rows] == ["2026-08-21", "2026-08-28"]
+    assert [r["date"] for r in rows] == ["2026-08-17", "2026-08-24"]
+    assert [r["combinedKey"] for r in rows] == ["2026-08-17", "2026-08-24"]
 
 
-def test_weekly_friday_holiday_date_is_thursday_key_stays_friday():
-    dates = [d for d in bdays("2026-08-17", "2026-08-28") if d != "2026-08-21"]
+def test_weekly_monday_holiday_label_is_tuesday_key_stays_monday():
+    dates = [d for d in bdays("2026-08-17", "2026-08-28") if d != "2026-08-17"]
     rows = resample_rows(make_df(dates), "1wk", "2026-08-17", "2026-08-28")
-    assert rows[0]["date"] == "2026-08-20"
-    assert rows[0]["combinedKey"] == "2026-08-21"
+    assert rows[0]["date"] == "2026-08-18"
+    assert rows[0]["combinedKey"] == "2026-08-17"
 
 
-def test_weekly_close_and_volume_aggregation():
+def test_weekly_value_is_last_trading_day_of_week():
     df = make_df(
         bdays("2026-08-17", "2026-08-21"),
         closes=[10, 11, 12, 13, 14],
@@ -45,31 +45,49 @@ def test_weekly_close_and_volume_aggregation():
         vol=100,
     )
     (row,) = resample_rows(df, "1wk", "2026-08-17", "2026-08-21")
-    assert row["close"] == 14 and row["adjClose"] == 13
-    assert row["volume"] == 500
+    assert row["date"] == "2026-08-17"          # 標第一個交易日
+    assert row["close"] == 14 and row["adjClose"] == 13  # 值是最後一個交易日
+    assert row["volume"] == 500                 # 成交量加總
+
+
+def test_weekly_friday_holiday_value_is_thursday():
+    dates = [d for d in bdays("2026-08-17", "2026-08-28") if d != "2026-08-21"]
+    df = make_df(dates, closes=[float(i) for i in range(len(dates))])
+    rows = resample_rows(df, "1wk", "2026-08-17", "2026-08-28")
+    assert rows[0]["close"] == 3.0  # 週四（該週第 4 個交易日）
 
 
 def test_weekly_prior_period_is_exactly_one_row():
-    # 起始日 2026-08-20（週四）：前一期 = 8/14 那週，更早的丟掉
+    # 起始日 2026-08-20（週四）：前一期 = 8/10 那週，更早的丟掉
     df = make_df(bdays("2026-07-27", "2026-08-28"))
     rows = resample_rows(df, "1wk", "2026-08-20", "2026-08-28")
     flags = [r["flag"] for r in rows]
     assert flags.count(core.FLAG_PRIOR) == 1
     assert rows[0]["flag"] == core.FLAG_PRIOR
-    assert rows[0]["date"] == "2026-08-14"
-    # 8/20 所在的那週（最後交易日 8/21 >= 起始日）屬於範圍內
-    assert rows[1]["date"] == "2026-08-21"
+    assert rows[0]["date"] == "2026-08-10"
+    # 起始日所在的那一週（8/17 週）屬於範圍內，日期標該週第一個交易日 8/17
+    assert rows[1]["date"] == "2026-08-17"
+    assert rows[1]["flag"] == ""
 
 
 def test_weekly_partial_when_end_is_monday():
-    # 題目情境：結束日 2026-08-31 是週一，最後一週只有 1 天
+    # 題目情境：結束日 2026-08-31 是週一，最後一週只有 1 天，值取截至結束日最新的一天
     df = make_df(bdays("2026-08-17", "2026-08-31"))
     rows = resample_rows(df, "1wk", "2026-08-17", "2026-08-31")
     last = rows[-1]
     assert last["date"] == "2026-08-31"
-    assert last["combinedKey"] == "2026-09-04"
+    assert last["combinedKey"] == "2026-08-31"
     assert last["flag"] == core.FLAG_PARTIAL
     assert all(r["flag"] != core.FLAG_PARTIAL for r in rows[:-1])
+
+
+def test_weekly_partial_value_is_latest_day_so_far():
+    df = make_df(bdays("2026-08-24", "2026-09-04"), closes=[float(i) for i in range(10)])
+    rows = resample_rows(df, "1wk", "2026-08-24", "2026-09-02")  # 結束日週三
+    last = rows[-1]
+    assert last["date"] == "2026-08-31"          # 該週第一個交易日
+    assert last["close"] == 7.0                  # 截至 9/2 的最新一天
+    assert last["flag"] == core.FLAG_PARTIAL
 
 
 def test_weekly_end_on_friday_is_not_partial():
@@ -79,36 +97,36 @@ def test_weekly_end_on_friday_is_not_partial():
 
 
 def test_weekly_end_on_friday_holiday_is_not_partial():
-    # 結束日週五休市，資料到週四，該週已完整
     dates = [d for d in bdays("2026-08-17", "2026-08-28") if d != "2026-08-28"]
     rows = resample_rows(make_df(dates), "1wk", "2026-08-17", "2026-08-28")
-    assert rows[-1]["date"] == "2026-08-27"
+    assert rows[-1]["date"] == "2026-08-24"
     assert rows[-1]["flag"] == ""
 
 
 # ---------------------------------------------------------------- 月
 
-def test_monthly_last_trading_day_and_month_end_key():
+def test_monthly_label_first_trading_day_key_first_of_month():
     df = make_df(bdays("2026-06-01", "2026-08-31"))
     rows = resample_rows(df, "1mo", "2026-06-01", "2026-08-31")
-    assert [r["date"] for r in rows] == ["2026-06-30", "2026-07-31", "2026-08-31"]
-    assert rows[1]["combinedKey"] == "2026-07-31"
+    assert [r["date"] for r in rows] == ["2026-06-01", "2026-07-01", "2026-08-03"]  # 8/1 是週六
+    assert [r["combinedKey"] for r in rows] == ["2026-06-01", "2026-07-01", "2026-08-01"]
 
 
-def test_monthly_month_end_on_weekend_key_is_calendar_month_end():
-    # 2026-05-31 是週日，最後交易日 5/29，key 仍是 5/31
-    df = make_df(bdays("2026-05-01", "2026-06-30"))
+def test_monthly_value_is_last_trading_day_of_month():
+    # 2026-05-31 是週日，該月最後交易日是 5/29
+    df = make_df(bdays("2026-05-01", "2026-06-30"), closes=[float(i) for i in range(43)])
     rows = resample_rows(df, "1mo", "2026-05-01", "2026-06-30")
-    assert rows[0]["date"] == "2026-05-29"
-    assert rows[0]["combinedKey"] == "2026-05-31"
+    may_days = [d for d in bdays("2026-05-01", "2026-05-31")]
+    assert rows[0]["date"] == "2026-05-01"
+    assert rows[0]["close"] == float(len(may_days) - 1)
 
 
 def test_monthly_partial_and_prior():
     df = make_df(bdays("2026-05-01", "2026-08-12"))
     rows = resample_rows(df, "1mo", "2026-07-01", "2026-08-12")
-    assert rows[0]["flag"] == core.FLAG_PRIOR and rows[0]["date"] == "2026-06-30"
+    assert rows[0]["flag"] == core.FLAG_PRIOR and rows[0]["combinedKey"] == "2026-06-01"
     assert rows[-1]["flag"] == core.FLAG_PARTIAL
-    assert rows[-1]["combinedKey"] == "2026-08-31"
+    assert rows[-1]["combinedKey"] == "2026-08-01"
 
 
 # ---------------------------------------------------------------- 年
@@ -116,9 +134,11 @@ def test_monthly_partial_and_prior():
 def test_yearly():
     df = make_df(bdays("2023-01-02", "2026-06-30"))
     rows = resample_rows(df, "1y", "2024-01-01", "2026-06-30")
-    assert rows[0]["flag"] == core.FLAG_PRIOR and rows[0]["date"] == "2023-12-29"
-    assert rows[1]["combinedKey"] == "2024-12-31"
-    assert rows[-1]["combinedKey"] == "2026-12-31"
+    assert rows[0]["flag"] == core.FLAG_PRIOR and rows[0]["combinedKey"] == "2023-01-01"
+    assert rows[0]["date"] == "2023-01-02"
+    assert rows[1]["combinedKey"] == "2024-01-01"
+    assert rows[1]["date"] == "2024-01-01"
+    assert rows[-1]["combinedKey"] == "2026-01-01"
     assert rows[-1]["flag"] == core.FLAG_PARTIAL
 
 

@@ -39,11 +39,24 @@ def _to_date(v) -> date:
 
 
 def period_key(d: date, interval: str) -> date:
-    """該日所屬週期在 Combined 分頁的對齊日期（週五／月底／12-31／當日）。"""
+    """該日所屬週期在 Combined 分頁的對齊日期（與雅虎一致：週一／月初／1-1／當日）。"""
     if interval == "1d":
         return d
-    if interval == "1wk":  # 等同 W-FRI：週六、週日歸入下一個週五
-        return d + timedelta(days=(4 - d.weekday()) % 7)
+    if interval == "1wk":
+        return d - timedelta(days=d.weekday())  # 該週週一（週末若有資料，歸入前一個週一）
+    if interval == "1mo":
+        return date(d.year, d.month, 1)
+    if interval == "1y":
+        return date(d.year, 1, 1)
+    raise CoreError("BAD_REQUEST", f"不支援的頻率：{interval}")
+
+
+def period_end(d: date, interval: str) -> date:
+    """該日所屬週期的最後一天（週五／月底／12-31／當日），用來判斷 Partial。"""
+    if interval == "1d":
+        return d
+    if interval == "1wk":
+        return period_key(d, interval) + timedelta(days=4)
     if interval == "1mo":
         return date(d.year, d.month, calendar.monthrange(d.year, d.month)[1])
     if interval == "1y":
@@ -83,12 +96,14 @@ def resample_rows(
     today_local: Optional[date] = None,
     market_closed: bool = True,
 ) -> list[dict]:
-    """把日資料轉成指定頻率，回傳 rows（含 date / combinedKey / flag）。
+    """把日資料轉成指定頻率（做法與雅虎財經的週／月／年資料一致），回傳 rows。
 
-    - 週期內：最後一筆的 Close、Adj Close；Volume 加總；date = 實際最後交易日
-    - 週期歸屬：該期最後交易日 >= start 才算在範圍內
+    - date = 該期「第一個交易日」；combinedKey = 週一／月初／1-1
+    - Close、Adj Close = 該期「最後一個交易日」的值（結束日落在期中時，就是截至結束日最新的一天）
+    - Volume = 該期加總
+    - 週期歸屬：該期最後交易日 >= start 才算在範圍內（含起始日所在的那一期）
     - Prior period：最後交易日 < start 的最後一期（只留一期）
-    - Partial：最後一期的對齊日 > end（結束日落在週期中間）
+    - Partial：最後一期的期末（週五／月底／12-31）> end（結束日落在週期中間）
     - Intraday：日資料、最後一筆 = 當地今天、且尚未收盤
     """
     if interval not in INTERVALS:
@@ -99,21 +114,22 @@ def resample_rows(
     if df.empty:
         return []
 
-    periods = []  # [key, last_date, close, adj, volume]
+    # [key, first_date, last_date, close, adj, volume, period_end]
+    periods = []
     cur_key = None
     for ts, r in df.iterrows():
         d = ts.date()
         k = period_key(d, interval)
         if k != cur_key:
-            periods.append([k, d, float(r["Close"]), float(r["Adj Close"]), float(r["Volume"])])
+            periods.append([k, d, d, float(r["Close"]), float(r["Adj Close"]), float(r["Volume"]), period_end(d, interval)])
             cur_key = k
         else:
             p = periods[-1]
-            p[1], p[2], p[3] = d, float(r["Close"]), float(r["Adj Close"])
-            p[4] += float(r["Volume"])
+            p[2], p[3], p[4] = d, float(r["Close"]), float(r["Adj Close"])
+            p[5] += float(r["Volume"])
 
-    before = [p for p in periods if p[1] < start_d]
-    inside = [p for p in periods if p[1] >= start_d]
+    before = [p for p in periods if p[2] < start_d]
+    inside = [p for p in periods if p[2] >= start_d]
     chosen = ([(before[-1], FLAG_PRIOR)] if before else []) + [(p, "") for p in inside]
 
     rows = []
@@ -121,15 +137,15 @@ def resample_rows(
         is_last = i == len(chosen) - 1
         if is_last and not flag:
             if interval == "1d":
-                if today_local is not None and p[1] == today_local and not market_closed:
+                if today_local is not None and p[2] == today_local and not market_closed:
                     flag = FLAG_INTRADAY
-            elif p[0] > end_d:
+            elif p[6] > end_d:
                 flag = FLAG_PARTIAL
         rows.append({
             "date": p[1].isoformat(),
-            "close": p[2],
-            "adjClose": p[3],
-            "volume": int(round(p[4])),
+            "close": p[3],
+            "adjClose": p[4],
+            "volume": int(round(p[5])),
             "flag": flag,
             "combinedKey": p[0].isoformat(),
         })

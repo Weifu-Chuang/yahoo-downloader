@@ -28,18 +28,18 @@ ASSETS = [
     ("LVMUY", "LVMH Moet Hennessy Louis Vuitton (ADR)", "個股 Stock", "USD", "price", 120),
 ]
 
-# (對齊日 = 週五, 預設實際最後交易日, 註記)
+# (對齊日 = 週一, 預設該週第一個交易日, 註記)
 WEEKS = [
-    (date(2026, 7, 31), date(2026, 7, 31), "Prior period 前一期"),
-    (date(2026, 8, 7), date(2026, 8, 7), ""),
-    (date(2026, 8, 14), date(2026, 8, 14), ""),
-    (date(2026, 8, 21), date(2026, 8, 21), ""),
-    (date(2026, 8, 28), date(2026, 8, 28), ""),
-    (date(2026, 9, 4), date(2026, 8, 31), "Partial 未完整"),
+    (date(2026, 7, 27), date(2026, 7, 27), "Prior period 前一期"),
+    (date(2026, 8, 3), date(2026, 8, 3), ""),
+    (date(2026, 8, 10), date(2026, 8, 10), ""),
+    (date(2026, 8, 17), date(2026, 8, 17), ""),
+    (date(2026, 8, 24), date(2026, 8, 24), ""),
+    (date(2026, 8, 31), date(2026, 8, 31), "Partial 未完整"),
 ]
-# 示範：某些市場該週的實際最後交易日不同，或整週休市（Combined 會留白）
-OVERRIDE_DATE = {("^TWII", date(2026, 8, 21)): date(2026, 8, 20)}
-SKIP = {("^N225", date(2026, 8, 14))}
+# 示範：某些市場該週第一個交易日不是週一，或整週休市（Combined 會留白）
+OVERRIDE_DATE = {("^TWII", date(2026, 8, 17)): date(2026, 8, 18)}
+SKIP = {("^N225", date(2026, 8, 10))}
 
 HEAD_FILL = PatternFill("solid", fgColor="DCE6F1")
 SAMPLE_FILL = PatternFill("solid", fgColor="FFF2CC")
@@ -130,9 +130,9 @@ def main():
         rows = data[sym]
         note = "殖利率 %，非價格，不可直接計算報酬 / Yield in %, not a price" if unit == "yield_pct" else ""
         if sym == "^N225":
-            note = "示範：2026-08-14 該週整週休市，Combined 留白 / demo: whole week closed, blank in Combined"
+            note = "示範：2026-08-10 該週整週休市，Combined 留白 / demo: whole week closed, blank in Combined"
         if sym == "^TWII":
-            note = "示範：2026-08-21 該週最後交易日為 08-20 / demo: last trading day of the week is 08-20"
+            note = "示範：2026-08-17 該週週一休市，日期欄標 08-18（第一個交易日），Combined 仍在 08-17 / demo: Monday closed, date is 08-18, Combined stays at 08-17"
         info.append([sym, name, cat, cur, "殖利率 % Yield" if unit == "yield_pct" else "價格 Price",
                      datetime.combine(rows[0][0], datetime.min.time()),
                      datetime.combine(rows[-1][0], datetime.min.time()), len(rows), note])
@@ -156,16 +156,16 @@ def main():
          "Currency: each series stays in its local currency; no FX conversion"),
         ("^TNX 為殖利率（%），不是價格，不可直接計算報酬",
          "^TNX is a yield in %, not a price; do not compute returns from it directly"),
-        ("日期標示：各標的分頁的週／月／年資料，一律標該期「實際最後交易日」",
-         "Dates: weekly/monthly/yearly rows in each ticker sheet use the actual last trading day of the period"),
-        ("Combined 對齊：日資料以交易日；週資料以該週週五；月資料以月底；年資料以 12/31",
-         "Combined alignment: daily = trading day; weekly = that week's Friday; monthly = month end; yearly = Dec 31"),
+        ("日期與數值：各標的分頁的週／月／年資料，日期欄標該期「第一個交易日」，收盤價取該期「最後一個交易日」的值，成交量為整期加總（與雅虎財經的做法一致）",
+         "Dates and values: the date is the FIRST trading day of the period; Close/Adj Close are from the LAST trading day; Volume is the period total (same convention as Yahoo Finance)"),
+        ("Combined 對齊：日資料以交易日；週資料以該週週一；月資料以月初；年資料以 1/1",
+         "Combined alignment: daily = trading day; weekly = that week's Monday; monthly = first of the month; yearly = Jan 1"),
         ("Combined 留白：該期該市場沒有交易時，儲存格為空白，不補值。計算共變異數前請自行處理",
          "Combined blanks: a cell is empty when that market has no data for the period; handle before computing covariances"),
         ("Flag 註記：Prior period 前一期 = 起始日之前多抓的一期，供計算第一期報酬",
          "Flag: Prior period = one extra period before the start date, for computing the first return"),
-        ("Flag 註記：Partial 未完整 = 結束日落在週期中間，該期資料不完整（仍保留最後交易日的數字）",
-         "Flag: Partial = the end date falls inside the period; the period is incomplete (the last trading day's value is kept)"),
+        ("Flag 註記：Partial 未完整 = 結束日落在週期中間，該期資料不完整（收盤價取截至結束日最新的一天）",
+         "Flag: Partial = the end date falls inside the period; the period is incomplete (values are from the latest trading day up to the end date)"),
         ("Flag 註記：Intraday 盤中 = 日資料最後一筆為當日尚未收盤的盤中價",
          "Flag: Intraday = the last daily row is an unfinished intraday price"),
     ]

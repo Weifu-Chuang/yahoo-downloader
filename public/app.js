@@ -564,7 +564,7 @@ function buildInfo(ok, range, failed) {
   const fname = { D: "日 Daily", W: "週 Weekly", M: "月 Monthly", Y: "年 Yearly" }[f];
   const modeText = state.mode === "custom" ? "自訂起始日 custom start date" : `往回推：${lbName(state.lookback)}`;
   const now = new Date().toLocaleString("sv-SE", { timeZone: "Asia/Taipei" });
-  const align = { D: "交易日 trading day", W: "該週週五 that week's Friday", M: "月底 month end", Y: "12/31" }[f];
+  const align = { D: "交易日 trading day", W: "該週週一 that week's Monday", M: "月初 first of the month", Y: "1/1" }[f];
   const text = [
     [`資料來源：Yahoo Finance；下載時間：${now}（台北時間）`, `Source: Yahoo Finance; downloaded at ${now} (Taipei time)`],
     [`頻率：${fname}；期間：${range.start} ~ ${range.end}（${modeText}）`, `Frequency: ${fname}; period: ${range.start} ~ ${range.end}`],
@@ -572,12 +572,12 @@ function buildInfo(ok, range, failed) {
     ["Close = 未調整股利（已調整分割）；Adj Close = 調整分割與股利", "Close = not adjusted for dividends (split-adjusted); Adj Close = adjusted for splits and dividends"],
     ["幣別：各標的維持當地幣別，未換匯", "Currency: each series stays in its local currency; no FX conversion"],
     ["^TNX 為殖利率（%），不是價格，不可直接計算報酬", "^TNX is a yield in %, not a price; do not compute returns from it directly"],
-    ["日期標示：各標的分頁的週／月／年資料，一律標該期「實際最後交易日」", "Dates: weekly/monthly/yearly rows in each ticker sheet use the actual last trading day of the period"],
-    [`Combined 對齊：日資料以交易日；週資料以該週週五；月資料以月底；年資料以 12/31（本檔：${align}）`,
-      "Combined alignment: daily = trading day; weekly = that week's Friday; monthly = month end; yearly = Dec 31"],
+    ["日期與數值：各標的分頁的週／月／年資料，日期欄標該期「第一個交易日」，收盤價與調整後收盤價取該期「最後一個交易日」的值，成交量為整期加總（與雅虎財經的做法一致）", "Dates and values: in weekly/monthly/yearly rows, the date is the FIRST trading day of the period, Close/Adj Close are from the LAST trading day of the period, and Volume is the period total (same convention as Yahoo Finance)"],
+    [`Combined 對齊：日資料以交易日；週資料以該週週一；月資料以月初；年資料以 1/1（本檔：${align}）`,
+      "Combined alignment: daily = trading day; weekly = that week's Monday; monthly = first of the month; yearly = Jan 1"],
     ["Combined 留白：該期該市場沒有資料時，儲存格為空白，不補值。計算共變異數前請自行處理", "Combined blanks: a cell is empty when that market has no data for the period; handle before computing covariances"],
     ["Flag：Prior period 前一期 = 起始日之前多抓的一期，供計算第一期報酬", "Flag: Prior period = one extra period before the start date, for computing the first return"],
-    ["Flag：Partial 未完整 = 結束日落在週期中間，該期資料不完整（仍保留最後交易日的數字）", "Flag: Partial = the end date falls inside the period; the period is incomplete (the last trading day's value is kept)"],
+    ["Flag：Partial 未完整 = 結束日落在週期中間，該期資料不完整（收盤價取截至結束日最新的一天）", "Flag: Partial = the end date falls inside the period; the period is incomplete (values are from the latest trading day up to the end date)"],
     ["Flag：Intraday 盤中 = 日資料最後一筆為當日尚未收盤的盤中價", "Flag: Intraday = the last daily row is an unfinished intraday price"],
   ];
   if (failed.length) {
