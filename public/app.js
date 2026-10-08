@@ -493,35 +493,47 @@ function sheetName(sym, used) {
 function buildWorkbook(ok, range, failed) {
   const wb = XLSX.utils.book_new();
   const used = new Set(["info 說明", "combined_adjclose", "combined_close"]);
-  const sheets = []; // 標的分頁（先建好，最後再依順序加進 workbook）
-  const f = state.freq;
+  const NO_TRADING = "No trading 休市";
+  const NO_DATA = "No data 無資料";
 
-  ok.forEach((it) => {
-    const d = it.data;
-    const isYield = d.unit === "yield_pct";
-    const aoa = [isYield
-      ? ["Date 日期", "Yield (%) 殖利率", "Adj Yield (%) 調整後殖利率", "Volume 成交量", "Flag 註記"]
-      : ["Date 日期", "Close 收盤價", "Adj Close 調整後收盤價", "Volume 成交量", "Flag 註記"]];
-    d.rows.forEach((r) => aoa.push([
-      dateCell(r.date), numCell(r.close, "#,##0.00##"), numCell(r.adjClose, "#,##0.00##"),
-      numCell(r.volume, "#,##0"), flagText(r.flag),
-    ]));
-    const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws["!cols"] = [{ wch: 13 }, { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 20 }];
-    sheets.push({ name: sheetName(it.sym, used), ws });
-  });
-
-  // Combined：外部聯集，缺值留白
+  // 所有分頁共用同一組列：所有已選標的的期間（對齊日）聯集
   const keySet = new Set();
   ok.forEach((it) => it.data.combinedKeys.forEach((k) => keySet.add(k)));
   const keys = [...keySet].sort();
+
+  // 每個標的：期間對齊日 → 資料列
   const lookup = ok.map((it) => {
     const m = new Map();
     it.data.combinedKeys.forEach((k, i) => m.set(k, it.data.rows[i]));
     return m;
   });
+
+  const sheets = [];
+  ok.forEach((it, idx) => {
+    const d = it.data;
+    const isYield = d.unit === "yield_pct";
+    const firstKey = d.combinedKeys[0];
+    const aoa = [isYield
+      ? ["Period 期間", "Trade Date 取值日", "Yield (%) 殖利率", "Adj Yield (%) 調整後殖利率", "Volume 成交量", "Flag 註記"]
+      : ["Period 期間", "Trade Date 取值日", "Close 收盤價", "Adj Close 調整後收盤價", "Volume 成交量", "Flag 註記"]];
+    keys.forEach((k) => {
+      const r = lookup[idx].get(k);
+      if (r) {
+        aoa.push([dateCell(k), dateCell(r.tradeDate), numCell(r.close, "#,##0.00##"), numCell(r.adjClose, "#,##0.00##"),
+          numCell(r.volume, "#,##0"), flagText(r.flag)]);
+      } else {
+        // 該標的這一期沒有資料：期間照填，其餘留白
+        aoa.push([dateCell(k), null, null, null, null, k < firstKey ? NO_DATA : NO_TRADING]);
+      }
+    });
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [{ wch: 13 }, { wch: 15 }, { wch: 16 }, { wch: 24 }, { wch: 16 }, { wch: 22 }];
+    sheets.push({ name: sheetName(it.sym, used), ws });
+  });
+
+  // Combined：同一組列，缺值留白
   function combined(field) {
-    const aoa = [["Date 日期", ...ok.map((it) => it.sym), "Flag 註記"]];
+    const aoa = [["Period 期間", ...ok.map((it) => it.sym), "Flag 註記"]];
     keys.forEach((k) => {
       const flags = [];
       const line = [dateCell(k)];
@@ -547,7 +559,7 @@ function buildWorkbook(ok, range, failed) {
 
 function buildInfo(ok, range, failed) {
   const head = ["代號 Ticker", "名稱 Name", "類別 Category", "幣別 Currency", "單位 Unit",
-    "第一筆日期 First Date", "最後一筆日期 Last Date", "筆數 Rows", "備註 Notes"];
+    "第一筆取值日 First Trade Date", "最後一筆取值日 Last Trade Date", "有資料筆數 Rows", "備註 Notes"];
   const aoa = [head];
   ok.forEach((it) => {
     const d = it.data, rows = d.rows;
@@ -557,7 +569,7 @@ function buildInfo(ok, range, failed) {
     if (rows.some((r) => r.flag === "Partial")) notes.push("最後一期未完整 / last period incomplete");
     if (rows.some((r) => r.flag === "Intraday")) notes.push("最後一筆為盤中價 / last row is intraday");
     aoa.push([it.sym, d.name, it.category, d.currency || "", d.unit === "yield_pct" ? "殖利率 % Yield" : "價格 Price",
-      dateCell(rows[0].date), dateCell(rows[rows.length - 1].date), rows.length, notes.join("；")]);
+      dateCell(rows[0].tradeDate), dateCell(rows[rows.length - 1].tradeDate), rows.length, notes.join("；")]);
   });
 
   const f = state.freq;
@@ -568,15 +580,18 @@ function buildInfo(ok, range, failed) {
   const text = [
     [`資料來源：Yahoo Finance；下載時間：${now}（台北時間）`, `Source: Yahoo Finance; downloaded at ${now} (Taipei time)`],
     [`頻率：${fname}；期間：${range.start} ~ ${range.end}（${modeText}）`, `Frequency: ${fname}; period: ${range.start} ~ ${range.end}`],
-    ["第一筆日期與筆數包含 Prior period 前一期，供計算第一期報酬", "First Date and Rows include the Prior period row, used to compute the first return"],
+    ["第一筆取值日與筆數包含 Prior period 前一期，供計算第一期報酬；筆數只算有資料的列，不含休市的空白列", "First Trade Date and Rows include the Prior period row, used to compute the first return; Rows counts only rows with data, not blank no-trading rows"],
     ["Close = 未調整股利（已調整分割）；Adj Close = 調整分割與股利", "Close = not adjusted for dividends (split-adjusted); Adj Close = adjusted for splits and dividends"],
     ["幣別：各標的維持當地幣別，未換匯", "Currency: each series stays in its local currency; no FX conversion"],
     ["^TNX 為殖利率（%），不是價格，不可直接計算報酬", "^TNX is a yield in %, not a price; do not compute returns from it directly"],
-    ["日期與數值：各標的分頁的週／月／年資料，日期欄標該期「第一個交易日」，收盤價與調整後收盤價取該期「最後一個交易日」的值，成交量為整期加總（與雅虎財經的做法一致）", "Dates and values: in weekly/monthly/yearly rows, the date is the FIRST trading day of the period, Close/Adj Close are from the LAST trading day of the period, and Volume is the period total (same convention as Yahoo Finance)"],
+    ["兩個日期欄：Period 期間 = 對齊日（日資料為當天、週資料為該週週一、月資料為該月 1 日、年資料為 1/1，與雅虎財經的日期標示相同），所有標的分頁與 Combined 分頁都一樣；Trade Date 取值日 = 收盤價實際來自哪一天（該期最後一個交易日；結束日落在期中時，為截至結束日最新的一天）", "Two date columns: Period = alignment date (the day for daily data, that week's Monday, the 1st of the month, or Jan 1; same as Yahoo Finance labels), identical in every ticker sheet and in Combined; Trade Date = the day Close/Adj Close actually come from (the LAST trading day of the period; the latest day up to the end date for an unfinished period)"],
+    ["收盤價與調整後收盤價取該期最後一個交易日的值，成交量為整期加總", "Close and Adj Close are from the last trading day of the period; Volume is the total over the period"],
     [`Combined 對齊：日資料以交易日；週資料以該週週一；月資料以月初；年資料以 1/1（本檔：${align}）`,
       "Combined alignment: daily = trading day; weekly = that week's Monday; monthly = first of the month; yearly = Jan 1"],
-    ["Combined 留白：該期該市場沒有資料時，儲存格為空白，不補值。計算共變異數前請自行處理", "Combined blanks: a cell is empty when that market has no data for the period; handle before computing covariances"],
+    ["所有分頁的列相同：列 = 所有已下載標的的期間聯集。某標的該期沒有交易（例如春節、聖誕節整週或整天休市）時，該列只填 Period，取值日與數值留白，Flag 標 No trading 休市；標的尚未上市或尚無資料的期間標 No data 無資料。所有標的都沒有交易的期間不會出現", "All sheets share the same rows: the union of periods of all downloaded tickers. When a ticker has no trading in a period (e.g. a whole week or day closed), only Period is filled, Trade Date and values are blank, and Flag says No trading; periods before a ticker has data are flagged No data. Periods where every ticker is closed do not appear"],
+    ["空白格不補值。以公式計算報酬或共變異數前，請自行處理（例如以 Flag 篩選掉空白列）", "Blank cells are not filled. Handle them yourself (e.g. filter out blank rows using Flag) before computing returns or covariances"],
     ["Flag：Prior period 前一期 = 起始日之前多抓的一期，供計算第一期報酬", "Flag: Prior period = one extra period before the start date, for computing the first return"],
+    ["Flag：No trading 休市 = 該標的在該期沒有交易；No data 無資料 = 該標的在該期之前尚無資料", "Flag: No trading = the ticker has no trading in that period; No data = the ticker has no data before this period"],
     ["Flag：Partial 未完整 = 結束日落在週期中間，該期資料不完整（收盤價取截至結束日最新的一天）", "Flag: Partial = the end date falls inside the period; the period is incomplete (values are from the latest trading day up to the end date)"],
     ["Flag：Intraday 盤中 = 日資料最後一筆為當日尚未收盤的盤中價", "Flag: Intraday = the last daily row is an unfinished intraday price"],
   ];

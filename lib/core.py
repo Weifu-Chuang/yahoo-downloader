@@ -142,7 +142,8 @@ def resample_rows(
             elif p[6] > end_d:
                 flag = FLAG_PARTIAL
         rows.append({
-            "date": p[1].isoformat(),
+            "date": p[1].isoformat(),        # 該期第一個交易日
+            "tradeDate": p[2].isoformat(),   # 取值日：收盤價實際來自哪一天（該期最後一個交易日）
             "close": p[3],
             "adjClose": p[4],
             "volume": int(round(p[5])),

@@ -28,17 +28,17 @@ ASSETS = [
     ("LVMUY", "LVMH Moet Hennessy Louis Vuitton (ADR)", "個股 Stock", "USD", "price", 120),
 ]
 
-# (對齊日 = 週一, 預設該週第一個交易日, 註記)
+# (期間 = 週一, 預設取值日 = 該週最後一個交易日, 註記)
 WEEKS = [
-    (date(2026, 7, 27), date(2026, 7, 27), "Prior period 前一期"),
-    (date(2026, 8, 3), date(2026, 8, 3), ""),
-    (date(2026, 8, 10), date(2026, 8, 10), ""),
-    (date(2026, 8, 17), date(2026, 8, 17), ""),
-    (date(2026, 8, 24), date(2026, 8, 24), ""),
+    (date(2026, 7, 27), date(2026, 7, 31), "Prior period 前一期"),
+    (date(2026, 8, 3), date(2026, 8, 7), ""),
+    (date(2026, 8, 10), date(2026, 8, 14), ""),
+    (date(2026, 8, 17), date(2026, 8, 21), ""),
+    (date(2026, 8, 24), date(2026, 8, 28), ""),
     (date(2026, 8, 31), date(2026, 8, 31), "Partial 未完整"),
 ]
-# 示範：某些市場該週第一個交易日不是週一，或整週休市（Combined 會留白）
-OVERRIDE_DATE = {("^TWII", date(2026, 8, 17)): date(2026, 8, 18)}
+# 示範：某些市場該週週五休市（取值日為週四），或整週休市（留白）
+OVERRIDE_DATE = {("^TWII", date(2026, 8, 17)): date(2026, 8, 20)}
 SKIP = {("^N225", date(2026, 8, 10))}
 
 HEAD_FILL = PatternFill("solid", fgColor="DCE6F1")
@@ -48,7 +48,7 @@ BOLD = Font(bold=True)
 
 def build_rows(seed_i, sym, base, unit):
     rnd = random.Random(seed_i)
-    rows, price = [], float(base)
+    rows, price = {}, float(base)
     for key, d, flag in WEEKS:
         # 先產生亂數再決定是否略過，這樣略過某週不會改變其他週的數字
         step = rnd.uniform(-0.03, 0.035)
@@ -61,7 +61,7 @@ def build_rows(seed_i, sym, base, unit):
             continue
         close = round(price, 2 if unit == "price" else 3)
         adj = close if unit == "yield_pct" else round(close * 0.985, 2)  # 假裝有配息
-        rows.append((OVERRIDE_DATE.get((sym, key), d), key, close, adj, vol, flag))
+        rows[key] = (OVERRIDE_DATE.get((sym, key), d), key, close, adj, vol, flag)
     return rows
 
 
@@ -86,28 +86,34 @@ def main():
         data[sym] = build_rows(i, sym, base, unit)
         ws = wb.create_sheet(sym)
         if unit == "yield_pct":
-            ws.append(["Date 日期", "Yield (%) 殖利率", "Adj Yield (%) 調整後殖利率", "Volume 成交量", "Flag 註記"])
+            ws.append(["Period 期間", "Trade Date 取值日", "Yield (%) 殖利率", "Adj Yield (%) 調整後殖利率", "Volume 成交量", "Flag 註記"])
         else:
-            ws.append(["Date 日期", "Close 收盤價", "Adj Close 調整後收盤價", "Volume 成交量", "Flag 註記"])
-        for d, _k, close, adj, vol, flag in data[sym]:
-            ws.append([datetime(d.year, d.month, d.day), close, adj, vol, flag])
+            ws.append(["Period 期間", "Trade Date 取值日", "Close 收盤價", "Adj Close 調整後收盤價", "Volume 成交量", "Flag 註記"])
+        first_key = min(data[sym])
+        for k, _d, _f in WEEKS:
+            r = data[sym].get(k)
+            if r:
+                ws.append([datetime(k.year, k.month, k.day), datetime(r[0].year, r[0].month, r[0].day), r[2], r[3], r[4], r[5]])
+            else:
+                ws.append([datetime(k.year, k.month, k.day), None, None, None, None,
+                           "No data 無資料" if k < first_key else "No trading 休市"])
         for r in range(2, ws.max_row + 1):
-            ws.cell(r, 1).number_format = "yyyy-mm-dd"
-            ws.cell(r, 2).number_format = ws.cell(r, 3).number_format = "#,##0.00##"
-            ws.cell(r, 4).number_format = "#,##0"
-        style_header(ws, 5)
-        for col, w in zip("ABCDE", (13, 16, 22, 16, 20)):
+            ws.cell(r, 1).number_format = ws.cell(r, 2).number_format = "yyyy-mm-dd"
+            ws.cell(r, 3).number_format = ws.cell(r, 4).number_format = "#,##0.00##"
+            ws.cell(r, 5).number_format = "#,##0"
+        style_header(ws, 6)
+        for col, w in zip("ABCDEF", (13, 15, 16, 24, 16, 22)):
             ws.column_dimensions[col].width = w
 
     # Combined：外部聯集，缺值留白
     keys = [k for k, _d, _f in WEEKS]
     syms = [a[0] for a in ASSETS]
     for ws, idx in ((cadj, 3), (cclose, 2)):
-        ws.append(["Date 日期"] + syms + ["Flag 註記"])
+        ws.append(["Period 期間"] + syms + ["Flag 註記"])
         for k in keys:
             line, flags = [datetime(k.year, k.month, k.day)], []
             for s in syms:
-                hit = next((r for r in data[s] if r[1] == k), None)
+                hit = data[s].get(k)
                 line.append(hit[idx] if hit else None)
                 if hit and hit[5]:
                     flags.append(hit[5])
@@ -125,14 +131,14 @@ def main():
 
     # Info
     info.append(["代號 Ticker", "名稱 Name", "類別 Category", "幣別 Currency", "單位 Unit",
-                 "第一筆日期 First Date", "最後一筆日期 Last Date", "筆數 Rows", "備註 Notes"])
+                 "第一筆取值日 First Trade Date", "最後一筆取值日 Last Trade Date", "有資料筆數 Rows", "備註 Notes"])
     for sym, name, cat, cur, unit, _b in ASSETS:
-        rows = data[sym]
+        rows = sorted(data[sym].values())
         note = "殖利率 %，非價格，不可直接計算報酬 / Yield in %, not a price" if unit == "yield_pct" else ""
         if sym == "^N225":
-            note = "示範：2026-08-10 該週整週休市，Combined 留白 / demo: whole week closed, blank in Combined"
+            note = "示範：2026-08-10 該週整週休市，該列留白並標休市 / demo: whole week closed, row is blank and flagged"
         if sym == "^TWII":
-            note = "示範：2026-08-17 該週週一休市，日期欄標 08-18（第一個交易日），Combined 仍在 08-17 / demo: Monday closed, date is 08-18, Combined stays at 08-17"
+            note = "示範：2026-08-17 該週週五休市，取值日為 08-20 / demo: Friday closed, Trade Date is 08-20"
         info.append([sym, name, cat, cur, "殖利率 % Yield" if unit == "yield_pct" else "價格 Price",
                      datetime.combine(rows[0][0], datetime.min.time()),
                      datetime.combine(rows[-1][0], datetime.min.time()), len(rows), note])
@@ -156,12 +162,18 @@ def main():
          "Currency: each series stays in its local currency; no FX conversion"),
         ("^TNX 為殖利率（%），不是價格，不可直接計算報酬",
          "^TNX is a yield in %, not a price; do not compute returns from it directly"),
-        ("日期與數值：各標的分頁的週／月／年資料，日期欄標該期「第一個交易日」，收盤價取該期「最後一個交易日」的值，成交量為整期加總（與雅虎財經的做法一致）",
-         "Dates and values: the date is the FIRST trading day of the period; Close/Adj Close are from the LAST trading day; Volume is the period total (same convention as Yahoo Finance)"),
+        ("兩個日期欄：Period 期間 = 對齊日（日資料為當天、週資料為該週週一、月資料為該月 1 日、年資料為 1/1，與雅虎財經的日期標示相同），所有標的分頁與 Combined 分頁都一樣；Trade Date 取值日 = 收盤價實際來自哪一天（該期最後一個交易日；結束日落在期中時，為截至結束日最新的一天）",
+         "Two date columns: Period = alignment date (that week's Monday, the 1st of the month, Jan 1, or the day itself for daily data), identical in every sheet; Trade Date = the day Close/Adj Close actually come from (the last trading day of the period)"),
+        ("收盤價與調整後收盤價取該期最後一個交易日的值，成交量為整期加總",
+         "Close and Adj Close are from the last trading day of the period; Volume is the total over the period"),
         ("Combined 對齊：日資料以交易日；週資料以該週週一；月資料以月初；年資料以 1/1",
          "Combined alignment: daily = trading day; weekly = that week's Monday; monthly = first of the month; yearly = Jan 1"),
-        ("Combined 留白：該期該市場沒有交易時，儲存格為空白，不補值。計算共變異數前請自行處理",
-         "Combined blanks: a cell is empty when that market has no data for the period; handle before computing covariances"),
+        ("所有分頁的列相同：列 = 所有已下載標的的期間聯集。某標的該期沒有交易時，該列只填 Period，取值日與數值留白，Flag 標 No trading 休市；標的尚未有資料的期間標 No data 無資料。所有標的都沒有交易的期間不會出現",
+         "All sheets share the same rows (union of periods). When a ticker has no trading in a period, only Period is filled, Trade Date and values are blank, and Flag says No trading; earlier periods are flagged No data"),
+        ("空白格不補值。以公式計算報酬或共變異數前，請自行處理（例如以 Flag 篩選掉空白列）",
+         "Blank cells are not filled. Handle them yourself (e.g. filter out blank rows using Flag) before computing returns or covariances"),
+        ("Flag 註記：No trading 休市 = 該標的在該期沒有交易；No data 無資料 = 該標的在該期之前尚無資料",
+         "Flag: No trading = the ticker has no trading in that period; No data = no data before this period"),
         ("Flag 註記：Prior period 前一期 = 起始日之前多抓的一期，供計算第一期報酬",
          "Flag: Prior period = one extra period before the start date, for computing the first return"),
         ("Flag 註記：Partial 未完整 = 結束日落在週期中間，該期資料不完整（收盤價取截至結束日最新的一天）",

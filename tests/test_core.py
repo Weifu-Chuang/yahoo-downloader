@@ -50,6 +50,16 @@ def test_weekly_value_is_last_trading_day_of_week():
     assert row["volume"] == 500                 # 成交量加總
 
 
+def test_trade_date_is_the_day_the_value_comes_from():
+    dates = [d for d in bdays("2026-08-17", "2026-08-28") if d != "2026-08-21"]
+    rows = resample_rows(make_df(dates), "1wk", "2026-08-17", "2026-08-28")
+    assert rows[0]["combinedKey"] == "2026-08-17"
+    assert rows[0]["tradeDate"] == "2026-08-20"  # 週五休市，取值日是週四
+    assert rows[1]["tradeDate"] == "2026-08-28"
+    daily = resample_rows(make_df(dates), "1d", "2026-08-17", "2026-08-28")
+    assert all(r["tradeDate"] == r["date"] for r in daily)
+
+
 def test_weekly_friday_holiday_value_is_thursday():
     dates = [d for d in bdays("2026-08-17", "2026-08-28") if d != "2026-08-21"]
     df = make_df(dates, closes=[float(i) for i in range(len(dates))])
