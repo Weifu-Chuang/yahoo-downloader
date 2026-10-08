@@ -43,7 +43,9 @@ python -m pytest
 
 入口設定在 `pyproject.toml`（`[tool.vercel] entrypoint`），路由轉送在 `vercel.json`。網頁檔案放在 `public/`，Vercel 只會公開這個資料夾和 `/api`。
 
-也可以不經 GitHub，在專案資料夾執行 `npx vercel deploy --prod`。新專案預設開啟 Deployment Protection，只有登入的 Vercel 帳號能開啟；要給同學使用，需到專案設定的 Deployment Protection 關閉。
+也可以不經 GitHub，在專案資料夾執行 `npx vercel deploy --prod`。新專案預設開啟 Deployment Protection（只有登入的 Vercel 帳號能開啟）。要給別人使用，需到專案設定關閉它，或執行 `npx vercel project protection disable <專案名> --sso`。
+
+目前的雲端版：https://yahoo-downloader.vercel.app
 
 ## 已知限制
 

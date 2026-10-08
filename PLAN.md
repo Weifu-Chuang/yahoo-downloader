@@ -333,9 +333,10 @@ yahoo-downloader/
 - [x] 專案內 `git init`，第一次 commit（本機 repo，與家目錄的 repo 分開）
 - [x] 部署到 Vercel：https://yahoo-downloader.vercel.app （團隊 gathergo）。雲端 API 驗證通過：^TWII、SPY 正常、錯誤代號回 404、十年日資料 2513 筆約 1 秒、回應 324 KB，雅虎沒有封鎖。
 - [x] `README.md`
-- [ ] 推上 GitHub 公開 repo：**被系統擋下，待你決定**（建立公開 repo 需要你確認）
-- [ ] 同學使用：Vercel 預設開啟 Deployment Protection，需登入才能開；要給同學用，需到專案設定關閉，**待你決定**
-- [ ] 驗收標準 5：用瀏覽器開雲端網址實際下載一次，**待你操作**（需先登入 Vercel 或關閉保護）
+- [x] 推上 GitHub 公開 repo：https://github.com/Weifu-Chuang/yahoo-downloader
+- [ ] Vercel 與 GitHub 自動連動（push 後自動部署）：`vercel git connect` 失敗，需到 Vercel 專案設定安裝 GitHub App；目前改版要在專案資料夾執行 `npx vercel deploy --prod`
+- [x] 同學使用：已關閉 Deployment Protection，網址公開可開
+- [x] 驗收標準 5：以無頭瀏覽器在公開網址完成週資料下載一次（18 個分頁，2026-10-08）；建議你也用自己的瀏覽器再下載一次
 
 ## 4. 驗收標準
 
