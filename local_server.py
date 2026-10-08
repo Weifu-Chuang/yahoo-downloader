@@ -4,6 +4,7 @@ import sys
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+PUBLIC = os.path.join(ROOT, "public")
 sys.path.insert(0, ROOT)
 
 from lib.server import ApiHandler  # noqa: E402
@@ -13,12 +14,12 @@ STATIC = {"/", "/index.html", "/app.js", "/style.css"}
 
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
-        super().__init__(*a, directory=ROOT, **kw)
+        super().__init__(*a, directory=PUBLIC, **kw)
 
     def do_GET(self):
         if self.path.startswith("/api/"):
             ApiHandler.do_GET(self)
-        elif self.path.split("?")[0] in STATIC or self.path.startswith("/sample/PortfolioData_"):  # 只開放前端檔案，不暴露原始碼
+        elif self.path.split("?")[0] in STATIC:  # 只開放 public/ 內的前端檔案，不暴露原始碼
             super().do_GET()
         else:
             self.send_error(404)

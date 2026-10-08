@@ -19,6 +19,9 @@ def handle_request(raw_path: str):
     u = urlparse(raw_path)
     q = {k: v[0] for k, v in parse_qs(u.query).items()}
     route = u.path.rstrip("/")
+    # Vercel 的 rewrite 會把路徑改成 /api/index，原本的路由放在查詢參數 _r
+    if q.get("_r"):
+        route = "/api/" + q.pop("_r").strip("/")
     try:
         if route.endswith("/api/history"):
             for k in ("symbol", "start", "end", "interval"):

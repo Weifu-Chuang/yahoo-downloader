@@ -38,3 +38,10 @@ def test_blocked_maps_to_503(monkeypatch):
     monkeypatch.setattr(core, "get_history", boom)
     status, body = server.handle_request("/api/history?symbol=SPY&start=2026-01-01&end=2026-02-01&interval=1wk")
     assert status == 503 and body["error"] == "YAHOO_BLOCKED"
+
+
+def test_vercel_rewrite_route_param(monkeypatch):
+    monkeypatch.setattr(core, "get_meta", lambda s: {
+        "name": "3M", "currency": "USD", "exchange": "NYQ", "firstDate": None})
+    status, body = server.handle_request("/api/index?_r=validate&symbol=MMM")
+    assert status == 200 and body["valid"] is True

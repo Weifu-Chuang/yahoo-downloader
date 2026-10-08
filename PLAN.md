@@ -181,14 +181,14 @@ Yahoo Finance（透過 yfinance）
 yahoo-downloader/
 ├── PLAN.md                 本文件
 ├── README.md               使用說明（本機執行、部署步驟）
-├── index.html              介面
-├── app.js                  前端邏輯、組 Excel
-├── style.css
+├── public/
+│   ├── index.html          介面
+│   ├── app.js              前端邏輯、組 Excel
+│   └── style.css
 ├── lib/
 │   └── core.py             抓資料、轉頻率、標註 Flag（核心邏輯，不依賴 Vercel）
 ├── api/
-│   ├── history.py          Vercel 函式（薄包裝，呼叫 lib/core.py）
-│   └── validate.py
+│   └── index.py            Vercel 入口（路由在 lib/server.py，含 history、validate）
 ├── local_server.py         本機版：同時提供靜態頁面與 /api，供 Vercel 被封鎖時使用
 ├── requirements.txt        yfinance、pandas
 ├── vercel.json
@@ -328,6 +328,14 @@ yahoo-downloader/
 - **驗證**：驗收標準 5
 
 ---
+
+**進度（2026-10-08）**
+- [x] 專案內 `git init`，第一次 commit（本機 repo，與家目錄的 repo 分開）
+- [x] 部署到 Vercel：https://yahoo-downloader.vercel.app （團隊 gathergo）。雲端 API 驗證通過：^TWII、SPY 正常、錯誤代號回 404、十年日資料 2513 筆約 1 秒、回應 324 KB，雅虎沒有封鎖。
+- [x] `README.md`
+- [ ] 推上 GitHub 公開 repo：**被系統擋下，待你決定**（建立公開 repo 需要你確認）
+- [ ] 同學使用：Vercel 預設開啟 Deployment Protection，需登入才能開；要給同學用，需到專案設定關閉，**待你決定**
+- [ ] 驗收標準 5：用瀏覽器開雲端網址實際下載一次，**待你操作**（需先登入 Vercel 或關閉保護）
 
 ## 4. 驗收標準
 
