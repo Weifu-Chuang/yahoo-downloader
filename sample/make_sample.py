@@ -21,6 +21,7 @@ ASSETS = [
     ("GLD", "SPDR Gold Shares", "黃金 Gold", "USD", "price", 330),
     ("DBC", "Invesco DB Commodity Index Tracking Fund", "大宗商品 Commodities", "USD", "price", 24),
     ("IEF", "iShares 7-10 Year Treasury Bond ETF", "美國 10 年期公債 US 10Y Treasury", "USD", "price", 93),
+    ("^TNX", "CBOE Interest Rate 10 Year T Note", "美國 10 年期公債殖利率（無風險利率，不計入 15 檔）US 10Y Yield (risk-free, not in the 15)", "USD", "yield_pct", 4.7),
     ("2330.TW", "Taiwan Semiconductor Manufacturing", "個股 Stock", "TWD", "price", 2400),
     ("MMM", "3M Company", "個股 Stock", "USD", "price", 150),
     ("AAPL", "Apple Inc.", "個股 Stock", "USD", "price", 230),
@@ -134,7 +135,7 @@ def main():
                  "第一筆取值日 First Trade Date", "最後一筆取值日 Last Trade Date", "有資料筆數 Rows", "備註 Notes"])
     for sym, name, cat, cur, unit, _b in ASSETS:
         rows = sorted(data[sym].values())
-        note = "殖利率 %，非價格，不可直接計算報酬 / Yield in %, not a price" if unit == "yield_pct" else ""
+        note = "殖利率 %，非價格；無風險利率參考，算 15×15 矩陣時請排除 / Yield in %, not a price; risk-free reference, exclude from the 15x15 matrix" if unit == "yield_pct" else ""
         if sym == "^N225":
             note = "示範：2026-08-10 該週整週休市，該列留白並標休市 / demo: whole week closed, row is blank and flagged"
         if sym == "^TWII":
@@ -160,8 +161,8 @@ def main():
          "Close = not adjusted for dividends (split-adjusted); Adj Close = adjusted for splits and dividends"),
         ("幣別：各標的維持當地幣別，未換匯",
          "Currency: each series stays in its local currency; no FX conversion"),
-        ("若選擇 ^TNX（取代 IEF）：^TNX 為殖利率（%），不是價格，不可直接計算報酬",
-         "If ^TNX is selected (instead of IEF): it is a yield in %, not a price; do not compute returns from it directly"),
+        ("^TNX（若有勾選）為殖利率（%），不是價格，不可直接計算報酬，也不計入 15 檔共變異數矩陣",
+         "^TNX (if selected) is a yield in %, not a price; do not compute returns from it directly, and exclude it from the 15x15 covariance matrix"),
         ("兩個日期欄：Period 期間 = 對齊日（日資料為當天、週資料為該週週一、月資料為該月 1 日、年資料為 1/1，與雅虎財經的日期標示相同），所有標的分頁與 Combined 分頁都一樣；Trade Date 取值日 = 收盤價實際來自哪一天（該期最後一個交易日；結束日落在期中時，為截至結束日最新的一天）",
          "Two date columns: Period = alignment date (that week's Monday, the 1st of the month, Jan 1, or the day itself for daily data), identical in every sheet; Trade Date = the day Close/Adj Close actually come from (the last trading day of the period)"),
         ("收盤價與調整後收盤價取該期最後一個交易日的值，成交量為整期加總",
