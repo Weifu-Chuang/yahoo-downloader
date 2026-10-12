@@ -12,7 +12,10 @@ const ASSETS = [
   { id: "vnq", label: "美國房地產", cur: "USD", options: [["VNQ", "VNQ"]] },
   { id: "gld", label: "黃金", cur: "USD", options: [["GLD", "GLD"]] },
   { id: "dbc", label: "大宗商品", cur: "USD", options: [["DBC", "DBC"]] },
-  { id: "tnx", label: "美國 10 年期公債殖利率", cur: "殖利率 %", options: [["^TNX", "^TNX"]] },
+  {
+    id: "ust10", label: "美國 10 年期公債", cur: "USD",
+    options: [["IEF", "IEF（公債 ETF，題目指定的分析標的）"], ["^TNX", "^TNX（殖利率 %，無風險利率參考）"]],
+  },
 ];
 
 const LOOKBACKS = [
@@ -565,6 +568,8 @@ function buildInfo(ok, range, failed) {
     const d = it.data, rows = d.rows;
     const notes = [];
     if (d.unit === "yield_pct") notes.push("殖利率 %，非價格，不可直接計算報酬 / Yield in %, not a price");
+    if (it.sym === "IEF") notes.push("10 年期公債分析標的（價格型 ETF）；Close 與 Adj Close 差距大（配息累積），A～C 節用 Adj Close，D 節用 Close / proxy for the 10Y Treasury (price ETF); Close and Adj Close differ a lot due to accumulated distributions");
+    if (it.sym === "^TNX") notes.push("無風險利率參考，不計入 15 檔共變異數矩陣 / risk-free rate reference, not part of the 15-asset covariance matrix");
     if (it.sym === "0050.TW") notes.push("2025/6 一拆四，報酬請用 Adj Close / 4-for-1 split in 2025-06, use Adj Close");
     if (rows.some((r) => r.flag === "Partial")) notes.push("最後一期未完整 / last period incomplete");
     if (rows.some((r) => r.flag === "Intraday")) notes.push("最後一筆為盤中價 / last row is intraday");
@@ -583,7 +588,7 @@ function buildInfo(ok, range, failed) {
     ["第一筆取值日與筆數包含 Prior period 前一期，供計算第一期報酬；筆數只算有資料的列，不含休市的空白列", "First Trade Date and Rows include the Prior period row, used to compute the first return; Rows counts only rows with data, not blank no-trading rows"],
     ["Close = 未調整股利（已調整分割）；Adj Close = 調整分割與股利", "Close = not adjusted for dividends (split-adjusted); Adj Close = adjusted for splits and dividends"],
     ["幣別：各標的維持當地幣別，未換匯", "Currency: each series stays in its local currency; no FX conversion"],
-    ["^TNX 為殖利率（%），不是價格，不可直接計算報酬", "^TNX is a yield in %, not a price; do not compute returns from it directly"],
+    ["若選擇 ^TNX（取代 IEF）：^TNX 為殖利率（%），不是價格，不可直接計算報酬", "If ^TNX is selected (instead of IEF): it is a yield in %, not a price; do not compute returns from it directly"],
     ["兩個日期欄：Period 期間 = 對齊日（日資料為當天、週資料為該週週一、月資料為該月 1 日、年資料為 1/1，與雅虎財經的日期標示相同），所有標的分頁與 Combined 分頁都一樣；Trade Date 取值日 = 收盤價實際來自哪一天（該期最後一個交易日；結束日落在期中時，為截至結束日最新的一天）", "Two date columns: Period = alignment date (the day for daily data, that week's Monday, the 1st of the month, or Jan 1; same as Yahoo Finance labels), identical in every ticker sheet and in Combined; Trade Date = the day Close/Adj Close actually come from (the LAST trading day of the period; the latest day up to the end date for an unfinished period)"],
     ["收盤價與調整後收盤價取該期最後一個交易日的值，成交量為整期加總", "Close and Adj Close are from the last trading day of the period; Volume is the total over the period"],
     [`Combined 對齊：日資料以交易日；週資料以該週週一；月資料以月初；年資料以 1/1（本檔：${align}）`,
